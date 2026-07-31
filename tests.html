@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shutters Calculator Tests</title>
+  <style>
+    body{max-width:760px;margin:40px auto;padding:0 20px;font:16px/1.5 system-ui;color:#153f3a}h1{font-family:Georgia,serif}.result{padding:12px 15px;margin:8px 0;border-radius:9px}.pass{background:#e1f2e8}.fail{background:#fbe5e3}code{font-size:13px}
+  </style>
+</head>
+<body>
+  <h1>Calculation tests</h1>
+  <p id="summary">Running…</p>
+  <div id="results"></div>
+  <script type="module">
+    import { INCH_TO_METRE, parseDecimal, calculateItem, calculateQuote } from "./calculator.js";
+    const tests = [];
+    const test = (name, fn) => tests.push({ name, fn });
+    const near = (actual, expected, epsilon = 1e-10) => { if (Math.abs(actual - expected) > epsilon) throw new Error(`expected ${expected}, got ${actual}`); };
+    const equal = (actual, expected) => { if (actual !== expected) throw new Error(`expected ${expected}, got ${actual}`); };
+
+    test("Converts inches to metres", () => near(40 * INCH_TO_METRE, 1.016));
+    test("Accepts comma decimals", () => equal(parseDecimal("40,5"), 40.5));
+    test("Accepts point decimals", () => equal(parseDecimal("40.5"), 40.5));
+    test("Rejects missing dimensions", () => equal(calculateItem({width:"",height:"20",material:"wood",tilt:"standard"},{woodPrice:100,surcharge:25}).valid, false));
+    test("Rejects zero dimensions", () => equal(calculateItem({width:"0",height:"20",material:"wood",tilt:"standard"},{woodPrice:100,surcharge:25}).valid, false));
+    test("Calculates area without intermediate rounding", () => {
+      const result = calculateItem({width:"40.5",height:"50.25",material:"wood",tilt:"standard"},{woodPrice:100,pvcPrice:50,surcharge:25});
+      near(result.area, (40.5 * .0254) * (50.25 * .0254));
+    });
+    test("Uses distinct Wood and PVC rates", () => {
+      const wood = calculateItem({width:40,height:50,material:"wood",tilt:"standard"},{woodPrice:120,pvcPrice:80,surcharge:25});
+      const pvc = calculateItem({width:40,height:50,material:"pvc",tilt:"standard"},{woodPrice:120,pvcPrice:80,surcharge:25});
+      equal(wood.rate, 120); equal(pvc.rate, 80);
+    });
+    test("Adds a 25% Hidden Tilt surcharge", () => {
+      const result = calculateItem({width:40,height:50,material:"wood",tilt:"hidden"},{woodPrice:100,surcharge:25});
+      near(result.surcharge, result.basePrice * .25); near(result.total, result.basePrice * 1.25);
+    });
+    test("Totals multiple items", () => {
+      const quote = calculateQuote([
+        {width:40,height:50,material:"wood",tilt:"hidden"},
+        {width:30,height:60,material:"pvc",tilt:"standard"}
+      ], {woodPrice:100,pvcPrice:80,surcharge:25});
+      equal(quote.itemCount, 2); near(quote.total, quote.subtotal + quote.surcharge);
+    });
+    test("Zero price remains a valid calculation", () => {
+      const result = calculateItem({width:40,height:50,material:"wood",tilt:"hidden"},{woodPrice:0,surcharge:25});
+      equal(result.valid, true); equal(result.total, 0);
+    });
+
+    let passed = 0;
+    for (const entry of tests) {
+      const row = document.createElement("div");
+      try { entry.fn(); passed++; row.className = "result pass"; row.textContent = `✓ ${entry.name}`; }
+      catch (error) { row.className = "result fail"; row.innerHTML = `✗ ${entry.name}<br><code>${error.message}</code>`; }
+      document.querySelector("#results").append(row);
+    }
+    document.querySelector("#summary").textContent = `${passed}/${tests.length} tests passed`;
+    document.title = passed === tests.length ? `PASS · ${passed}/${tests.length}` : `FAIL · ${passed}/${tests.length}`;
+  </script>
+</body>
+</html>

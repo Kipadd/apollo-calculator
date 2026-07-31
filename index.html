@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#153f3a">
+  <meta name="description" content="Fast, offline-ready shutter quote calculator.">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Shutters Calc">
+  <link rel="manifest" href="./manifest.json">
+  <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png">
+  <link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./styles.css">
+  <title>Shutters Calculator</title>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <a class="brand" href="#calculator" aria-label="Shutters Calculator home">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 40 40" role="img"><path d="M8 7h24v26H8zM12 12h16M12 17h16M12 22h16M12 27h16"/></svg>
+        </span>
+        <span><strong>Shutters</strong><small>Calculator</small></span>
+      </a>
+      <nav class="top-nav" aria-label="Main navigation">
+        <button class="nav-button is-active" type="button" data-view="calculator" aria-current="page">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 3h14v18H5zM8 7h8M8 12h2m4 0h2M8 16h2m4 0h2"/></svg>
+          Quote
+        </button>
+        <button class="nav-button" type="button" data-view="settings">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21h-4v-.09A1.7 1.7 0 0 0 8.96 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15 1.7 1.7 0 0 0 3 14H3v-4h.09A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6 1.7 1.7 0 0 0 10 3V3h4v.09A1.7 1.7 0 0 0 15 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9 1.7 1.7 0 0 0 21 10v4h-.09a1.7 1.7 0 0 0-1.51 1Z"/></svg>
+          Settings
+        </button>
+      </nav>
+    </header>
+
+    <main>
+      <section id="calculator-view" class="view is-active" aria-labelledby="quote-heading">
+        <div class="page-intro">
+          <div>
+            <p class="eyebrow">New estimate</p>
+            <h1 id="quote-heading">Build your quote</h1>
+            <p>Measurements save automatically on this device.</p>
+          </div>
+          <span class="offline-badge"><span></span> Offline ready</span>
+        </div>
+
+        <div class="field customer-field">
+          <label for="customer">Customer / Reference <span>Optional</span></label>
+          <input id="customer" type="text" autocomplete="off" placeholder="e.g. Murphy · Living room">
+        </div>
+
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Order items</p>
+            <h2>Shutters</h2>
+          </div>
+          <span id="item-count-badge" class="count-badge">1 item</span>
+        </div>
+
+        <div id="items-list" class="items-list" aria-live="polite"></div>
+
+        <button id="add-item" class="button button-add" type="button">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+          Add Shutter
+        </button>
+
+        <section class="summary-card" aria-labelledby="summary-heading">
+          <div class="summary-title">
+            <div>
+              <p class="eyebrow">Quote summary</p>
+              <h2 id="summary-heading">Order total</h2>
+            </div>
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2V2Z"/><path d="M9 7h6M9 11h6M9 15h3"/></svg>
+          </div>
+          <dl class="summary-list">
+            <div><dt>Items</dt><dd id="summary-items">1</dd></div>
+            <div><dt>Total Area</dt><dd id="summary-area">—</dd></div>
+            <div><dt>Subtotal</dt><dd id="summary-subtotal">€0.00</dd></div>
+            <div><dt>Hidden Tilt Surcharge</dt><dd id="summary-surcharge">€0.00</dd></div>
+            <div class="summary-grand"><dt>Grand Total</dt><dd id="summary-total">€0.00</dd></div>
+          </dl>
+        </section>
+
+        <button id="reset-quote" class="button button-reset" type="button">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14M10 11v6m4-6v6"/></svg>
+          Reset Quote
+        </button>
+      </section>
+
+      <section id="settings-view" class="view" aria-labelledby="settings-heading" hidden>
+        <div class="page-intro settings-intro">
+          <div>
+            <p class="eyebrow">Pricing</p>
+            <h1 id="settings-heading">Settings</h1>
+            <p>Set your current rates. They stay saved on this device.</p>
+          </div>
+        </div>
+        <form id="settings-form" class="settings-card" novalidate>
+          <div class="settings-icon" aria-hidden="true">
+            <svg viewBox="0 0 40 40"><path d="M8 7h24v26H8zM12 12h16M12 17h16M12 22h16M12 27h16"/></svg>
+          </div>
+          <div class="field">
+            <label for="wood-price">Wood price per m²</label>
+            <div class="input-affix"><span>€</span><input id="wood-price" inputmode="decimal" autocomplete="off" value="0" aria-describedby="settings-error"></div>
+          </div>
+          <div class="field">
+            <label for="pvc-price">PVC price per m²</label>
+            <div class="input-affix"><span>€</span><input id="pvc-price" inputmode="decimal" autocomplete="off" value="0" aria-describedby="settings-error"></div>
+          </div>
+          <div class="field">
+            <label for="tilt-surcharge">Hidden Tilt surcharge</label>
+            <div class="input-affix suffix"><input id="tilt-surcharge" inputmode="decimal" autocomplete="off" value="25" aria-describedby="settings-error"><span>%</span></div>
+          </div>
+          <p id="settings-error" class="form-error" role="alert"></p>
+          <button class="button button-primary" type="submit">Save Settings</button>
+          <p id="save-feedback" class="save-feedback" role="status" aria-live="polite"></p>
+        </form>
+        <aside class="settings-note">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20ZM12 11v6M12 7h.01"/></svg>
+          <p><strong>About your pricing</strong><span>Rates are applied per square metre. Hidden Tilt is added after the base price.</span></p>
+        </aside>
+      </section>
+    </main>
+  </div>
+
+  <div id="sticky-total" class="sticky-total">
+    <div><span>Grand Total</span><strong id="sticky-total-value">€0.00</strong></div>
+    <button id="sticky-add" type="button" aria-label="Add another shutter">
+      <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+  </div>
+
+  <template id="item-template">
+    <article class="item-card">
+      <div class="item-card-header">
+        <div class="item-number" aria-hidden="true"></div>
+        <div class="field item-name-field">
+          <label>Shutter name <span>Optional</span></label>
+          <input class="item-name" type="text" autocomplete="off" placeholder="e.g. Kitchen">
+        </div>
+        <button class="delete-item" type="button" aria-label="Remove shutter">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14M10 11v6m4-6v6"/></svg>
+        </button>
+      </div>
+      <div class="measurement-grid">
+        <div class="field">
+          <label>Width <span>inches</span></label>
+          <div class="input-affix suffix"><input class="item-width" inputmode="decimal" autocomplete="off" placeholder="0.00"><span>in</span></div>
+          <p class="field-error width-error"></p>
+        </div>
+        <div class="field">
+          <label>Height <span>inches</span></label>
+          <div class="input-affix suffix"><input class="item-height" inputmode="decimal" autocomplete="off" placeholder="0.00"><span>in</span></div>
+          <p class="field-error height-error"></p>
+        </div>
+      </div>
+      <fieldset class="control-group">
+        <legend>Material</legend>
+        <div class="segmented material-control">
+          <label><input type="radio" value="wood"><span>Wood</span></label>
+          <label><input type="radio" value="pvc"><span>PVC</span></label>
+        </div>
+      </fieldset>
+      <fieldset class="control-group">
+        <legend>Tilt Type</legend>
+        <div class="segmented tilt-control">
+          <label><input type="radio" value="standard"><span>Standard Tilt</span></label>
+          <label><input type="radio" value="hidden"><span>Hidden Tilt <small class="surcharge-label">+25%</small></span></label>
+        </div>
+      </fieldset>
+      <div class="price-warning" hidden>
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 9v4m0 4h.01M10.3 3.7 2.4 18a2 2 0 0 0 1.75 3h15.7a2 2 0 0 0 1.75-3L13.7 3.7a2 2 0 0 0-3.4 0Z"/></svg>
+        <span>Set the price in Settings</span>
+      </div>
+      <dl class="item-result">
+        <div><dt>Width</dt><dd class="result-width">—</dd></div>
+        <div><dt>Height</dt><dd class="result-height">—</dd></div>
+        <div><dt>Area</dt><dd class="result-area">—</dd></div>
+        <div><dt>Price per m²</dt><dd class="result-rate">€0.00</dd></div>
+        <div><dt>Base Price</dt><dd class="result-base">—</dd></div>
+        <div class="surcharge-row"><dt>Hidden Tilt Surcharge</dt><dd class="result-surcharge">—</dd></div>
+        <div class="item-total-row"><dt>Item Total</dt><dd class="result-total">—</dd></div>
+      </dl>
+    </article>
+  </template>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
