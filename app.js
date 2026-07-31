@@ -1,4 +1,12 @@
-import { calculateQuote, parseDecimal } from "./calculator.js";
+import {
+  UNIT_INCHES,
+  UNIT_METRES,
+  calculateQuote,
+  convertItemMeasurements,
+  formatMeasurementInput,
+  normalizeUnit,
+  parseDecimal
+} from "./calculator.js";
 
 const SETTINGS_KEY = "shutters-calculator-settings-v1";
 const QUOTE_KEY = "shutters-calculator-quote-v1";
@@ -6,7 +14,7 @@ const defaults = { woodPrice: 0, pvcPrice: 0, surcharge: 25 };
 
 const createItem = () => ({
   id: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`,
-  name: "", width: "", height: "", material: "wood", tilt: "standard"
+  name: "", width: "", height: "", unit: UNIT_INCHES, material: "wood", tilt: "standard"
 });
 
 function readStored(key, fallback) {
@@ -27,7 +35,9 @@ let settings = {
 const storedQuote = readStored(QUOTE_KEY, { customer: "", items: [createItem()] });
 let quote = {
   customer: typeof storedQuote.customer === "string" ? storedQuote.customer : "",
-  items: Array.isArray(storedQuote.items) ? storedQuote.items.map((item) => ({ ...createItem(), ...item })) : [createItem()]
+  items: Array.isArray(storedQuote.items)
+    ? storedQuote.items.map((item) => ({ ...createItem(), ...item, unit: normalizeUnit(item?.unit ?? storedQuote.unit) }))
+    : [createItem()]
 };
 
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -56,13 +66,24 @@ function itemMarkup(item, index) {
   nameInput.id = `item-name-${item.id}`;
   $(".item-name-field label", card).htmlFor = nameInput.id;
   const width = $(".item-width", card);
-  width.value = item.width;
+  const unitSymbol = item.unit === UNIT_METRES ? "m" : "in";
+  width.value = formatMeasurementInput(item.width, item.unit);
+  width.placeholder = item.unit === UNIT_METRES ? "0.000" : "0.00";
   width.id = `item-width-${item.id}`;
-  width.closest(".field").querySelector("label").htmlFor = width.id;
+  $(".width-label", card).htmlFor = width.id;
+  $(".width-label", card).textContent = `Width (${unitSymbol})`;
+  $(".width-unit", card).textContent = unitSymbol;
   const height = $(".item-height", card);
-  height.value = item.height;
+  height.value = formatMeasurementInput(item.height, item.unit);
+  height.placeholder = item.unit === UNIT_METRES ? "0.000" : "0.00";
   height.id = `item-height-${item.id}`;
-  height.closest(".field").querySelector("label").htmlFor = height.id;
+  $(".height-label", card).htmlFor = height.id;
+  $(".height-label", card).textContent = `Height (${unitSymbol})`;
+  $(".height-unit", card).textContent = unitSymbol;
+  card.querySelectorAll(".unit-control input").forEach((input) => {
+    input.name = `unit-${item.id}`;
+    input.checked = input.value === item.unit;
+  });
   card.querySelectorAll(".material-control input").forEach((input) => {
     input.name = `material-${item.id}`;
     input.checked = input.value === item.material;
@@ -137,6 +158,13 @@ elements.items.addEventListener("input", (event) => {
   if (event.target.matches(".item-name")) item.name = event.target.value;
   if (event.target.matches(".item-width")) item.width = event.target.value;
   if (event.target.matches(".item-height")) item.height = event.target.value;
+  if (event.target.matches(".unit-control input")) {
+    const nextUnit = normalizeUnit(event.target.value);
+    Object.assign(item, convertItemMeasurements(item, item.unit, nextUnit));
+    persistQuote();
+    renderItems();
+    return;
+  }
   if (event.target.matches(".material-control input")) item.material = event.target.value;
   if (event.target.matches(".tilt-control input")) item.tilt = event.target.value;
   persistQuote();

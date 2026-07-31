@@ -146,16 +146,23 @@
       </div>
       <div class="measurement-grid">
         <div class="field">
-          <label>Width <span>inches</span></label>
-          <div class="input-affix suffix"><input class="item-width" inputmode="decimal" autocomplete="off" placeholder="0.00"><span>in</span></div>
+          <label class="width-label">Width (in)</label>
+          <div class="input-affix suffix"><input class="item-width" inputmode="decimal" autocomplete="off" placeholder="0.00"><span class="width-unit">in</span></div>
           <p class="field-error width-error"></p>
         </div>
         <div class="field">
-          <label>Height <span>inches</span></label>
-          <div class="input-affix suffix"><input class="item-height" inputmode="decimal" autocomplete="off" placeholder="0.00"><span>in</span></div>
+          <label class="height-label">Height (in)</label>
+          <div class="input-affix suffix"><input class="item-height" inputmode="decimal" autocomplete="off" placeholder="0.00"><span class="height-unit">in</span></div>
           <p class="field-error height-error"></p>
         </div>
       </div>
+      <fieldset class="control-group">
+        <legend>Measurement Unit</legend>
+        <div class="segmented unit-control">
+          <label><input type="radio" value="inches"><span>Inches</span></label>
+          <label><input type="radio" value="metres"><span>Metres</span></label>
+        </div>
+      </fieldset>
       <fieldset class="control-group">
         <legend>Material</legend>
         <div class="segmented material-control">

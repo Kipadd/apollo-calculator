@@ -1,5 +1,5 @@
 const CACHE_PREFIX = "shutters-calculator-";
-const CACHE_VERSION = "shutters-calculator-v3";
+const CACHE_VERSION = "shutters-calculator-v6";
 const APP_INDEX = new URL("./index.html", self.location.href).href;
 const APP_SHELL = [
   "./",

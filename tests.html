@@ -13,7 +13,17 @@
   <p id="summary">Running…</p>
   <div id="results"></div>
   <script type="module">
-    import { INCH_TO_METRE, parseDecimal, calculateItem, calculateQuote } from "./calculator.js";
+    import {
+      INCH_TO_METRE,
+      UNIT_INCHES,
+      UNIT_METRES,
+      parseDecimal,
+      calculateItem,
+      calculateQuote,
+      convertItemMeasurements,
+      formatMeasurementInput,
+      normalizeUnit
+    } from "./calculator.js";
     const tests = [];
     const test = (name, fn) => tests.push({ name, fn });
     const near = (actual, expected, epsilon = 1e-10) => { if (Math.abs(actual - expected) > epsilon) throw new Error(`expected ${expected}, got ${actual}`); };
@@ -47,6 +57,48 @@
     test("Zero price remains a valid calculation", () => {
       const result = calculateItem({width:40,height:50,material:"wood",tilt:"hidden"},{woodPrice:0,surcharge:25});
       equal(result.valid, true); equal(result.total, 0);
+    });
+    test("39.3700787 inches is approximately one metre", () => {
+      const inches = calculateItem({width:39.3700787,height:39.3700787,unit:UNIT_INCHES,material:"wood",tilt:"standard"},{woodPrice:100,surcharge:25});
+      const metres = calculateItem({width:1,height:1,unit:UNIT_METRES,material:"wood",tilt:"standard"},{woodPrice:100,surcharge:25});
+      near(inches.area, metres.area, 1e-6); near(inches.total, metres.total, 1e-6);
+    });
+    test("Switching one shutter from inches to metres preserves area and price", () => {
+      const item = {width:"48,25",height:"36.5",unit:UNIT_INCHES,material:"wood",tilt:"hidden"};
+      const before = calculateItem(item,{woodPrice:120,surcharge:25});
+      const converted = convertItemMeasurements(item,UNIT_INCHES,UNIT_METRES);
+      const after = calculateItem(converted,{woodPrice:120,surcharge:25});
+      near(after.area,before.area); near(after.total,before.total);
+    });
+    test("Switching one shutter back to inches preserves area and price", () => {
+      const item = {width:1.22555,height:.9271,unit:UNIT_METRES,material:"wood",tilt:"hidden"};
+      const before = calculateItem(item,{woodPrice:120,surcharge:25});
+      const converted = convertItemMeasurements(item,UNIT_METRES,UNIT_INCHES);
+      const after = calculateItem(converted,{woodPrice:120,surcharge:25});
+      near(after.area,before.area); near(after.total,before.total);
+    });
+    test("Old saved shutter items without a unit default to inches", () => {
+      const reloaded = JSON.parse(JSON.stringify({customer:"Legacy",items:[{width:40,height:50}]}));
+      equal(normalizeUnit(reloaded.items[0].unit),UNIT_INCHES);
+    });
+    test("Each shutter's selected unit restores after reload", () => {
+      const reloaded = JSON.parse(JSON.stringify({customer:"Metric",items:[{unit:UNIT_METRES}]}));
+      equal(normalizeUnit(reloaded.items[0].unit),UNIT_METRES);
+    });
+    test("A temporary global saved unit migrates to each shutter", () => {
+      const reloaded = JSON.parse(JSON.stringify({unit:UNIT_METRES,items:[{width:1,height:1}]}));
+      equal(normalizeUnit(reloaded.items[0].unit ?? reloaded.unit),UNIT_METRES);
+    });
+    test("Converted inputs use sensible trimmed formatting", () => {
+      equal(formatMeasurementInput(1.23456789,UNIT_METRES),"1.234568");
+      equal(formatMeasurementInput(40,UNIT_INCHES),"40");
+    });
+    test("Each shutter in a mixed-unit quote uses its own unit", () => {
+      const quote = calculateQuote([
+        {width:39.3700787,height:39.3700787,unit:UNIT_INCHES,material:"wood",tilt:"standard"},
+        {width:1,height:1,unit:UNIT_METRES,material:"wood",tilt:"standard"}
+      ],{woodPrice:100,surcharge:25});
+      equal(quote.itemCount,2); near(quote.results[0].area,1,1e-6); near(quote.results[1].area,1); near(quote.total,200,1e-6);
     });
 
     let passed = 0;
