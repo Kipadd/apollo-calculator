@@ -1,15 +1,21 @@
 import assert from "node:assert/strict";
 import {
   INCH_TO_METRE,
+  ITEM_BLIND,
+  ITEM_SHUTTER,
   UNIT_INCHES,
   UNIT_METRES,
+  calculateBlindItem,
   calculateItem,
   calculateQuote,
   convertItemMeasurements,
   formatMeasurementInput,
+  normalizeItemType,
+  normalizeStoredItem,
   normalizeUnit,
   parseDecimal
 } from "./calculator.js";
+import { BLIND_BANDS, BLIND_PRICE_BANDS, BLIND_WIDTHS, validateBlindPriceTable } from "./blind-prices.js";
 
 const near = (actual, expected, epsilon = 1e-10) => assert.ok(Math.abs(actual - expected) < epsilon, `${actual} != ${expected}`);
 
@@ -76,4 +82,71 @@ near(mixedUnitQuote.results[0].area, 1, 1e-6);
 near(mixedUnitQuote.results[1].area, 1);
 near(mixedUnitQuote.total, 200, 1e-6);
 
-console.log("26 calculation, conversion, migration, persistence, and formatting assertions passed.");
+assert.equal(validateBlindPriceTable(), true);
+assert.equal(BLIND_WIDTHS.length, 16);
+for (const band of BLIND_BANDS) {
+  assert.equal(BLIND_PRICE_BANDS[band].prices.length, BLIND_PRICE_BANDS[band].drops.length);
+  for (const row of BLIND_PRICE_BANDS[band].prices) assert.equal(row.length, 16);
+}
+
+const exactBlind = calculateBlindItem({ type: ITEM_BLIND, widthMm: 1670, dropMm: 2438, band: "C" });
+assert.equal(exactBlind.chargedWidth, 1670);
+assert.equal(exactBlind.chargedDrop, 2438);
+assert.equal(exactBlind.basePrice, 231);
+
+const requiredBlind = calculateBlindItem({ type: ITEM_BLIND, widthMm: 1600, dropMm: 2000, band: "C" });
+assert.equal(requiredBlind.chargedWidth, 1670);
+assert.equal(requiredBlind.chargedDrop, 2438);
+assert.equal(requiredBlind.basePrice, 231);
+near(requiredBlind.surcharge, 23.10);
+near(requiredBlind.total, 254.10);
+
+const minimumBlind = calculateBlindItem({ type: ITEM_BLIND, widthMm: 100, dropMm: 100, band: "A" });
+assert.equal(minimumBlind.chargedWidth, 508);
+assert.equal(minimumBlind.chargedDrop, 1219);
+
+const bandPrices = BLIND_BANDS.map((band) => calculateBlindItem({ type: ITEM_BLIND, widthMm: 1600, dropMm: 2000, band }).basePrice);
+assert.equal(new Set(bandPrices).size, 7);
+for (const band of ["A", "B"]) {
+  assert.equal(calculateBlindItem({ type: ITEM_BLIND, widthMm: 508, dropMm: 1219, band }).chargedDrop, 1219);
+}
+for (const band of ["C", "D", "E", "F", "G"]) {
+  assert.equal(calculateBlindItem({ type: ITEM_BLIND, widthMm: 508, dropMm: 1219, band }).chargedDrop, 1727);
+}
+
+const overWidthBlind = calculateBlindItem({ type: ITEM_BLIND, widthMm: 3455.01, dropMm: 2000, band: "A" });
+assert.equal(overWidthBlind.outOfRange, true);
+assert.equal(overWidthBlind.total, 0);
+const overDropBlind = calculateBlindItem({ type: ITEM_BLIND, widthMm: 1600, dropMm: 3302.01, band: "A" });
+assert.equal(overDropBlind.outOfRange, true);
+assert.equal(overDropBlind.total, 0);
+assert.equal(calculateBlindItem({ type: ITEM_BLIND, widthMm: "1600,5", dropMm: "2000,5", band: "C" }).valid, true);
+assert.equal(calculateBlindItem({ type: ITEM_BLIND, widthMm: Infinity, dropMm: 2000, band: "A" }).valid, false);
+
+const shutterForMixedQuote = { id: "s", type: ITEM_SHUTTER, width: 1, height: 1, unit: UNIT_METRES, material: "wood", tilt: "standard" };
+const blindForMixedQuote = { id: "b", type: ITEM_BLIND, widthMm: 1600, dropMm: 2000, band: "C" };
+const mixedProductQuote = calculateQuote([shutterForMixedQuote, blindForMixedQuote], { woodPrice: 100, pvcPrice: 80, surcharge: 25 });
+near(mixedProductQuote.shuttersSubtotal, 100);
+near(mixedProductQuote.blindsSubtotal, 254.10);
+near(mixedProductQuote.total, 354.10);
+assert.equal(mixedProductQuote.shutterCount, 1);
+assert.equal(mixedProductQuote.blindCount, 1);
+const outOfRangeQuote = calculateQuote([
+  shutterForMixedQuote,
+  { id: "over", type: ITEM_BLIND, widthMm: 4000, dropMm: 2000, band: "A" }
+], { woodPrice: 100, pvcPrice: 80, surcharge: 25 });
+near(outOfRangeQuote.total, 100);
+
+assert.equal(normalizeItemType(undefined), ITEM_SHUTTER);
+assert.equal(normalizeStoredItem({ id: "legacy", width: 40, height: 50 }).type, ITEM_SHUTTER);
+const savedBlind = JSON.parse(JSON.stringify({ id: "b", type: ITEM_BLIND, name: "Office", widthMm: "1600", dropMm: "2000", band: "C" }));
+assert.deepEqual(normalizeStoredItem(savedBlind), { id: "b", type: ITEM_BLIND, name: "Office", widthMm: "1600", dropMm: "2000", band: "C" });
+
+const afterBlindDeletion = calculateQuote([shutterForMixedQuote], { woodPrice: 100, pvcPrice: 80, surcharge: 25 });
+near(afterBlindDeletion.total, 100);
+assert.equal(afterBlindDeletion.blindCount, 0);
+const resetQuote = calculateQuote([{ type: ITEM_SHUTTER, width: "", height: "", unit: UNIT_INCHES, material: "wood", tilt: "standard" }], { woodPrice: 100, pvcPrice: 80, surcharge: 25 });
+assert.equal(resetQuote.blindCount, 0);
+assert.equal(resetQuote.total, 0);
+
+console.log("All shutter and blind calculation, lookup, migration, persistence, and summary assertions passed.");

@@ -53,6 +53,8 @@ main { padding: 25px 16px calc(126px + env(safe-area-inset-bottom)); }
 .field label span { color: #8a9996; font-size: 10px; font-weight: 700; text-transform: uppercase; }
 .field input { width: 100%; min-width: 0; min-height: 52px; padding: 13px 14px; border: 1px solid var(--line); outline: 0; border-radius: 12px; color: var(--ink); background: white; font-size: 16px; transition: border .18s, box-shadow .18s; appearance: none; }
 .field input:focus { border-color: var(--green-2); box-shadow: 0 0 0 3px rgba(33,100,91,.12); }
+.field select { width: 100%; min-height: 52px; padding: 13px 42px 13px 14px; border: 1px solid var(--line); outline: 0; border-radius: 12px; color: var(--ink); background: white; font-size: 16px; cursor: pointer; }
+.field select:focus { border-color: var(--green-2); box-shadow: 0 0 0 3px rgba(33,100,91,.12); }
 .field input.is-invalid { border-color: var(--danger); }
 .customer-field { margin-bottom: 30px; padding: 17px; border: 1px solid #e0e7e5; border-radius: 17px; background: var(--surface); box-shadow: var(--shadow); }
 .input-affix { display: flex; min-height: 52px; border: 1px solid var(--line); border-radius: 12px; align-items: center; overflow: hidden; color: var(--muted); background: white; }
@@ -73,6 +75,7 @@ main { padding: 25px 16px calc(126px + env(safe-area-inset-bottom)); }
 .delete-item { display: grid; width: 44px; height: 44px; margin-bottom: 3px; border: 0; border-radius: 12px; place-items: center; color: #9b4d47; background: #fbefed; cursor: pointer; }
 .delete-item svg { width: 19px; }
 .measurement-grid { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 12px; }
+.blind-band-field { margin-top: 13px; }
 .field-error { min-height: 14px; margin: 4px 2px 0; color: var(--danger); font-size: 10px; }
 .control-group { min-width: 0; margin: 13px 0 0; padding: 0; border: 0; }
 .segmented { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; min-height: 50px; padding: 4px; border-radius: 13px; background: #edf3f1; }
@@ -96,6 +99,9 @@ main { padding: 25px 16px calc(126px + env(safe-area-inset-bottom)); }
 .button { display: flex; width: 100%; min-height: 52px; border-radius: 13px; align-items: center; justify-content: center; gap: 9px; font-weight: 850; cursor: pointer; }
 .button svg { width: 20px; }
 .button-add { margin: 16px 0 30px; border: 1.5px dashed #83a69f; color: var(--green); background: #edf5f2; }
+.add-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 16px 0 30px; }
+.add-buttons .button-add { margin: 0; }
+.button-add-blind { border-style: solid; background: white; }
 .button-reset { margin-top: 14px; border: 1px solid #e4cfcb; color: var(--danger); background: #fff; }
 .button-primary { border: 0; color: white; background: var(--green); box-shadow: 0 8px 18px rgba(23,74,67,.2); }
 .button:active { transform: translateY(1px); }

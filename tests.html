@@ -15,15 +15,21 @@
   <script type="module">
     import {
       INCH_TO_METRE,
+      ITEM_BLIND,
+      ITEM_SHUTTER,
       UNIT_INCHES,
       UNIT_METRES,
       parseDecimal,
+      calculateBlindItem,
       calculateItem,
       calculateQuote,
       convertItemMeasurements,
       formatMeasurementInput,
+      normalizeItemType,
+      normalizeStoredItem,
       normalizeUnit
     } from "./calculator.js";
+    import { BLIND_BANDS, BLIND_PRICE_BANDS, BLIND_WIDTHS, validateBlindPriceTable } from "./blind-prices.js";
     const tests = [];
     const test = (name, fn) => tests.push({ name, fn });
     const near = (actual, expected, epsilon = 1e-10) => { if (Math.abs(actual - expected) > epsilon) throw new Error(`expected ${expected}, got ${actual}`); };
@@ -99,6 +105,70 @@
         {width:1,height:1,unit:UNIT_METRES,material:"wood",tilt:"standard"}
       ],{woodPrice:100,surcharge:25});
       equal(quote.itemCount,2); near(quote.results[0].area,1,1e-6); near(quote.results[1].area,1); near(quote.total,200,1e-6);
+    });
+    test("Blind price tables have consistent dimensions", () => {
+      equal(validateBlindPriceTable(),true); equal(BLIND_WIDTHS.length,16);
+      for(const band of BLIND_BANDS){equal(BLIND_PRICE_BANDS[band].prices.length,BLIND_PRICE_BANDS[band].drops.length);for(const row of BLIND_PRICE_BANDS[band].prices)equal(row.length,16);}
+    });
+    test("Exact blind dimensions select the exact cell", () => {
+      const result=calculateBlindItem({type:ITEM_BLIND,widthMm:1670,dropMm:2438,band:"C"});
+      equal(result.chargedWidth,1670);equal(result.chargedDrop,2438);equal(result.basePrice,231);
+    });
+    test("Blind width between columns selects the next larger width", () => {
+      equal(calculateBlindItem({type:ITEM_BLIND,widthMm:1600,dropMm:2000,band:"C"}).chargedWidth,1670);
+    });
+    test("Blind drop between rows selects the next larger drop", () => {
+      equal(calculateBlindItem({type:ITEM_BLIND,widthMm:1600,dropMm:2000,band:"C"}).chargedDrop,2438);
+    });
+    test("Bands A through G return distinct prices", () => {
+      const prices=BLIND_BANDS.map(band=>calculateBlindItem({type:ITEM_BLIND,widthMm:1600,dropMm:2000,band}).basePrice);
+      equal(new Set(prices).size,7);
+    });
+    test("Bands A and B support Drop 1219", () => {
+      for(const band of ["A","B"])equal(calculateBlindItem({type:ITEM_BLIND,widthMm:508,dropMm:1219,band}).chargedDrop,1219);
+    });
+    test("Bands C through G use 1727 as their minimum Drop", () => {
+      for(const band of ["C","D","E","F","G"])equal(calculateBlindItem({type:ITEM_BLIND,widthMm:508,dropMm:1219,band}).chargedDrop,1727);
+    });
+    test("Blind width above 3455 is out of range", () => {
+      const result=calculateBlindItem({type:ITEM_BLIND,widthMm:3455.01,dropMm:2000,band:"A"});equal(result.outOfRange,true);equal(result.total,0);
+    });
+    test("Blind drop above 3302 is out of range", () => {
+      const result=calculateBlindItem({type:ITEM_BLIND,widthMm:1600,dropMm:3302.01,band:"A"});equal(result.outOfRange,true);equal(result.total,0);
+    });
+    test("Blind price adds exactly ten percent", () => {
+      const result=calculateBlindItem({type:ITEM_BLIND,widthMm:1600,dropMm:2000,band:"C"});
+      equal(result.basePrice,231);near(result.surcharge,23.10);near(result.total,254.10);
+    });
+    test("Blind total contributes to a mixed quotation Grand Total", () => {
+      const result=calculateQuote([
+        {type:ITEM_SHUTTER,width:1,height:1,unit:UNIT_METRES,material:"wood",tilt:"standard"},
+        {type:ITEM_BLIND,widthMm:1600,dropMm:2000,band:"C"}
+      ],{woodPrice:100,pvcPrice:80,surcharge:25});
+      near(result.shuttersSubtotal,100);near(result.blindsSubtotal,254.10);near(result.total,354.10);
+    });
+    test("Out-of-range blind is excluded from Grand Total", () => {
+      const result=calculateQuote([
+        {type:ITEM_SHUTTER,width:1,height:1,unit:UNIT_METRES,material:"wood",tilt:"standard"},
+        {type:ITEM_BLIND,widthMm:4000,dropMm:2000,band:"A"}
+      ],{woodPrice:100,surcharge:25});near(result.total,100);
+    });
+    test("Legacy items without type restore as shutters", () => {
+      equal(normalizeItemType(undefined),ITEM_SHUTTER);equal(normalizeStoredItem({id:"legacy",width:40,height:50}).type,ITEM_SHUTTER);
+    });
+    test("Blind items preserve required localStorage fields", () => {
+      const saved={id:"b",type:ITEM_BLIND,name:"Office",widthMm:"1600",dropMm:"2000",band:"C"};
+      const restored=normalizeStoredItem(JSON.parse(JSON.stringify(saved)));equal(JSON.stringify(restored),JSON.stringify(saved));
+    });
+    test("Deleting a blind updates Grand Total", () => {
+      const shutter={id:"s",type:ITEM_SHUTTER,width:1,height:1,unit:UNIT_METRES,material:"wood",tilt:"standard"};
+      const blind={id:"b",type:ITEM_BLIND,widthMm:1600,dropMm:2000,band:"C"};
+      const before=calculateQuote([shutter,blind],{woodPrice:100,surcharge:25});
+      const after=calculateQuote([shutter],{woodPrice:100,surcharge:25});near(before.total,354.10);near(after.total,100);
+    });
+    test("Reset quotation contains no blind totals", () => {
+      const reset=calculateQuote([{type:ITEM_SHUTTER,width:"",height:"",unit:UNIT_INCHES,material:"wood",tilt:"standard"}],{woodPrice:100,surcharge:25});
+      equal(reset.blindCount,0);equal(reset.total,0);
     });
 
     let passed = 0;

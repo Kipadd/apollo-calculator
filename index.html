@@ -54,17 +54,23 @@
         <div class="section-heading">
           <div>
             <p class="eyebrow">Order items</p>
-            <h2>Shutters</h2>
+            <h2>Items</h2>
           </div>
           <span id="item-count-badge" class="count-badge">1 item</span>
         </div>
 
         <div id="items-list" class="items-list" aria-live="polite"></div>
 
-        <button id="add-item" class="button button-add" type="button">
-          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
-          Add Shutter
-        </button>
+        <div class="add-buttons">
+          <button id="add-shutter" class="button button-add" type="button">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+            Add Shutter
+          </button>
+          <button id="add-blind" class="button button-add button-add-blind" type="button">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+            Add Blind
+          </button>
+        </div>
 
         <section class="summary-card" aria-labelledby="summary-heading">
           <div class="summary-title">
@@ -75,10 +81,11 @@
             <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2V2Z"/><path d="M9 7h6M9 11h6M9 15h3"/></svg>
           </div>
           <dl class="summary-list">
-            <div><dt>Items</dt><dd id="summary-items">1</dd></div>
-            <div><dt>Total Area</dt><dd id="summary-area">—</dd></div>
-            <div><dt>Subtotal</dt><dd id="summary-subtotal">€0.00</dd></div>
-            <div><dt>Hidden Tilt Surcharge</dt><dd id="summary-surcharge">€0.00</dd></div>
+            <div><dt>Total Items</dt><dd id="summary-items">1</dd></div>
+            <div id="summary-shutters-row"><dt>Shutters Subtotal</dt><dd id="summary-shutters">€0.00</dd></div>
+            <div id="summary-blinds-row" hidden><dt>Blinds Subtotal</dt><dd id="summary-blinds">€0.00</dd></div>
+            <div id="summary-area-row"><dt>Shutters Total Area</dt><dd id="summary-area">—</dd></div>
+            <div id="summary-surcharge-row"><dt>Shutters Hidden Tilt Surcharge</dt><dd id="summary-surcharge">€0.00</dd></div>
             <div class="summary-grand"><dt>Grand Total</dt><dd id="summary-total">€0.00</dd></div>
           </dl>
         </section>
@@ -132,7 +139,7 @@
     </button>
   </div>
 
-  <template id="item-template">
+  <template id="shutter-template">
     <article class="item-card">
       <div class="item-card-header">
         <div class="item-number" aria-hidden="true"></div>
@@ -189,6 +196,59 @@
         <div><dt>Base Price</dt><dd class="result-base">—</dd></div>
         <div class="surcharge-row"><dt>Hidden Tilt Surcharge</dt><dd class="result-surcharge">—</dd></div>
         <div class="item-total-row"><dt>Item Total</dt><dd class="result-total">—</dd></div>
+      </dl>
+    </article>
+  </template>
+
+  <template id="blind-template">
+    <article class="item-card blind-card">
+      <div class="item-card-header">
+        <div class="item-number" aria-hidden="true"></div>
+        <div class="field item-name-field">
+          <label>Blind name <span>Optional</span></label>
+          <input class="item-name" type="text" autocomplete="off" placeholder="e.g. Bedroom">
+        </div>
+        <button class="delete-item" type="button" aria-label="Remove blind">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14M10 11v6m4-6v6"/></svg>
+        </button>
+      </div>
+      <div class="measurement-grid">
+        <div class="field">
+          <label class="blind-width-label">Width (mm)</label>
+          <div class="input-affix suffix"><input class="blind-width" inputmode="decimal" autocomplete="off" placeholder="0"><span>mm</span></div>
+          <p class="field-error blind-width-error"></p>
+        </div>
+        <div class="field">
+          <label class="blind-drop-label">Drop (mm)</label>
+          <div class="input-affix suffix"><input class="blind-drop" inputmode="decimal" autocomplete="off" placeholder="0"><span>mm</span></div>
+          <p class="field-error blind-drop-error"></p>
+        </div>
+      </div>
+      <div class="field blind-band-field">
+        <label class="blind-band-label">Price Band</label>
+        <select class="blind-band" autocomplete="off">
+          <option value="A">Band A</option>
+          <option value="B">Band B</option>
+          <option value="C">Band C</option>
+          <option value="D">Band D</option>
+          <option value="E">Band E</option>
+          <option value="F">Band F</option>
+          <option value="G">Band G</option>
+        </select>
+      </div>
+      <div class="price-warning blind-size-warning" hidden>
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 9v4m0 4h.01M10.3 3.7 2.4 18a2 2 0 0 0 1.75 3h15.7a2 2 0 0 0 1.75-3L13.7 3.7a2 2 0 0 0-3.4 0Z"/></svg>
+        <span>Size exceeds the available price table.</span>
+      </div>
+      <dl class="item-result blind-result">
+        <div><dt>Entered Width</dt><dd class="result-blind-entered-width">—</dd></div>
+        <div><dt>Entered Drop</dt><dd class="result-blind-entered-drop">—</dd></div>
+        <div><dt>Selected Band</dt><dd class="result-blind-band">Band A</dd></div>
+        <div><dt>Charged Width</dt><dd class="result-blind-charged-width">—</dd></div>
+        <div><dt>Charged Drop</dt><dd class="result-blind-charged-drop">—</dd></div>
+        <div><dt>Base Table Price</dt><dd class="result-blind-base">—</dd></div>
+        <div class="surcharge-row"><dt>10% Surcharge</dt><dd class="result-blind-surcharge">—</dd></div>
+        <div class="item-total-row"><dt>Item Total</dt><dd class="result-blind-total">—</dd></div>
       </dl>
     </article>
   </template>
