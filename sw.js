@@ -1,5 +1,5 @@
 const CACHE_PREFIX = "shutters-calculator-";
-const CACHE_VERSION = "shutters-calculator-v8";
+const CACHE_VERSION = "shutters-calculator-v9";
 const APP_INDEX = new URL("./index.html", self.location.href).href;
 const APP_SHELL = [
   "./",
@@ -9,10 +9,11 @@ const APP_SHELL = [
   "./calculator.js",
   "./blind-prices.js",
   "./manifest.json",
-  "./icons/icon.svg",
-  "./icons/apple-touch-icon.png",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
+  "./icons/icon-maskable-512.png",
+  "./icons/apple-touch-icon.png",
+  "./icons/favicon-32.png",
   "./tests.html"
 ].map((path) => new URL(path, self.location.href).href);
 

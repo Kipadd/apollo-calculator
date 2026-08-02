@@ -98,8 +98,8 @@ svg { display: block; fill: none; stroke: currentColor; stroke-width: 1.8; strok
 .app-shell { width: min(100%, 760px); min-height: 100vh; margin: 0 auto; background: var(--canvas); }
 .app-header { position: sticky; z-index: 20; top: 0; display: flex; align-items: center; justify-content: space-between; min-height: calc(72px + env(safe-area-inset-top)); padding: calc(10px + env(safe-area-inset-top)) 18px 10px; border-bottom: 1px solid var(--header-line); background: var(--header-bg); backdrop-filter: blur(16px); }
 .brand { display: flex; gap: 10px; align-items: center; min-width: 0; color: var(--ink); text-decoration: none; }
-.brand-mark { display: grid; width: 42px; height: 42px; flex: 0 0 42px; place-items: center; border-radius: 13px; color: white; background: var(--green); box-shadow: 0 5px 13px rgba(23,74,67,.2); }
-.brand-mark svg { width: 25px; }
+.brand-mark { display: grid; width: 42px; height: 42px; flex: 0 0 42px; overflow: hidden; place-items: center; border-radius: 13px; color: white; background: var(--green); box-shadow: 0 5px 13px rgba(23,74,67,.2); }
+.brand-mark img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .brand strong, .brand small { display: block; line-height: 1.05; }
 .brand strong { font-family: Georgia, serif; font-size: 18px; letter-spacing: -.2px; }
 .brand small { margin-top: 3px; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .11em; text-transform: uppercase; }
