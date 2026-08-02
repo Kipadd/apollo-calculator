@@ -1,10 +1,13 @@
 import {
   ITEM_BLIND,
   ITEM_SHUTTER,
+  ITEM_STATUS_COMPLETE,
+  ITEM_STATUS_OUT_OF_RANGE,
   UNIT_INCHES,
   UNIT_METRES,
   calculateQuote,
   convertItemMeasurements,
+  duplicateItem,
   formatMeasurementInput,
   normalizeBlindBand,
   normalizeItemType,
@@ -15,6 +18,9 @@ import {
 
 const SETTINGS_KEY = "shutters-calculator-settings-v1";
 const QUOTE_KEY = "shutters-calculator-quote-v1";
+const THEME_KEY = "shutters-calculator-theme-v1";
+const THEME_LIGHT = "light";
+const THEME_DARK = "dark";
 const defaults = { woodPrice: 0, pvcPrice: 0, surcharge: 25 };
 const createId = () => globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
 
@@ -24,7 +30,7 @@ const createShutterItem = () => ({
 });
 
 const createBlindItem = () => ({
-  id: createId(), type: ITEM_BLIND, name: "", widthMm: "", dropMm: "", band: "A"
+  id: createId(), type: ITEM_BLIND, name: "", widthMm: "", dropMm: "", band: ""
 });
 
 function readStored(key, fallback) {
@@ -56,33 +62,58 @@ let quote = {
     ? storedQuote.items.map((item) => restoreItem(item, storedQuote.unit))
     : [createShutterItem()]
 };
+const restoredSummary = calculateQuote(quote.items, settings);
+let expandedItemId = quote.items.find((item, index) => restoredSummary.results[index]?.status !== ITEM_STATUS_COMPLETE)?.id
+  ?? quote.items.at(-1)?.id
+  ?? null;
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const elements = {
-  customer: $("#customer"), items: $("#items-list"), shutterTemplate: $("#shutter-template"), blindTemplate: $("#blind-template"),
+  items: $("#items-list"), shutterTemplate: $("#shutter-template"), blindTemplate: $("#blind-template"),
   countBadge: $("#item-count-badge"), summaryItems: $("#summary-items"), summaryArea: $("#summary-area"),
   summaryShutters: $("#summary-shutters"), summaryBlinds: $("#summary-blinds"), summarySurcharge: $("#summary-surcharge"),
   summaryShuttersRow: $("#summary-shutters-row"), summaryBlindsRow: $("#summary-blinds-row"),
-  summaryAreaRow: $("#summary-area-row"), summarySurchargeRow: $("#summary-surcharge-row"), summaryTotal: $("#summary-total"),
+  summaryAreaRow: $("#summary-area-row"), summarySurchargeRow: $("#summary-surcharge-row"),
+  summaryIncompleteRow: $("#summary-incomplete-row"), summaryIncomplete: $("#summary-incomplete"), summaryTotal: $("#summary-total"),
   stickyTotal: $("#sticky-total"), stickyValue: $("#sticky-total-value"), settingsForm: $("#settings-form"),
   woodPrice: $("#wood-price"), pvcPrice: $("#pvc-price"), tiltSurcharge: $("#tilt-surcharge"),
-  settingsError: $("#settings-error"), saveFeedback: $("#save-feedback")
+  settingsError: $("#settings-error"), saveFeedback: $("#save-feedback"),
+  themeToggle: $("#theme-toggle"), themeLabel: $(".theme-label"), themeColor: $('meta[name="theme-color"]'),
+  stickyAdd: $("#sticky-add"), quickAddMenu: $("#quick-add-menu"),
+  quickAddShutter: $("#quick-add-shutter"), quickAddBlind: $("#quick-add-blind")
 };
 
 const money = new Intl.NumberFormat("en-IE", { style: "currency", currency: "EUR", minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const formatMoney = (value) => money.format(Number.isFinite(value) ? value : 0).replace(/\s/g, "");
 const formatMeasure = (value, unit) => Number.isFinite(value) ? `${value.toFixed(3)} ${unit}` : "—";
-const formatMillimetres = (value) => Number.isFinite(value) ? `${value} mm` : "—";
 const persistQuote = () => localStorage.setItem(QUOTE_KEY, JSON.stringify(quote));
 const persistSettings = () => localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+
+function applyTheme(theme, persist = false) {
+  const nextTheme = theme === THEME_DARK ? THEME_DARK : THEME_LIGHT;
+  const isDark = nextTheme === THEME_DARK;
+  document.documentElement.dataset.theme = nextTheme;
+  elements.themeToggle.setAttribute("aria-pressed", String(isDark));
+  elements.themeToggle.setAttribute("aria-label", `Switch to ${isDark ? "light" : "dark"} theme`);
+  elements.themeLabel.textContent = isDark ? "Dark" : "Light";
+  elements.themeColor.content = isDark ? "#0f1917" : "#153f3a";
+  if (persist) localStorage.setItem(THEME_KEY, nextTheme);
+}
 
 function prepareCard(fragment, item, index, nameLabel) {
   const card = $(".item-card", fragment);
   card.dataset.id = item.id;
   card.dataset.type = item.type;
-  $(".item-number", card).textContent = index + 1;
+  const expanded = item.id === expandedItemId;
+  card.classList.toggle("is-expanded", expanded);
+  const body = $(".item-card-body", card);
+  const toggle = $(".item-toggle", card);
+  body.id = `item-body-${item.id}`;
+  body.hidden = !expanded;
+  toggle.setAttribute("aria-expanded", String(expanded));
+  toggle.setAttribute("aria-controls", body.id);
   const nameInput = $(".item-name", card);
-  nameInput.value = item.name;
+  nameInput.value = item.name ?? "";
   nameInput.id = `item-name-${item.id}`;
   const label = $(".item-name-field label", card);
   label.htmlFor = nameInput.id;
@@ -154,6 +185,42 @@ function setResult(card, selector, value) {
   $(selector, card).textContent = value;
 }
 
+const formatCompactNumber = (value) => {
+  const parsed = parseDecimal(value);
+  return Number.isFinite(parsed) ? String(parsed) : "";
+};
+
+function itemSummaryMeta(item, result) {
+  if (item.type === ITEM_BLIND) {
+    const parts = [];
+    if (result.widthMm > 0 && result.dropMm > 0) parts.push(`${formatCompactNumber(result.widthMm)} × ${formatCompactNumber(result.dropMm)} mm`);
+    if (result.band) parts.push(`Band ${result.band}`);
+    return parts.join(" · ") || "Enter dimensions and price band";
+  }
+
+  const parts = [];
+  if (result.widthInput > 0 && result.heightInput > 0) {
+    const unit = item.unit === UNIT_METRES ? "m" : "in";
+    parts.push(`${formatCompactNumber(result.widthInput)} × ${formatCompactNumber(result.heightInput)} ${unit}`);
+  }
+  parts.push(item.material === "pvc" ? "PVC" : "Wood");
+  parts.push(item.tilt === "hidden" ? "Hidden Tilt" : "Standard Tilt");
+  return parts.join(" · ");
+}
+
+function updateCardSummary(card, item, result, index) {
+  const typeName = item.type === ITEM_BLIND ? "Blind" : "Shutter";
+  const name = String(item.name ?? "").trim();
+  setResult(card, ".item-summary-title", `${typeName} ${index + 1}${name ? ` · ${name}` : ""}`);
+  setResult(card, ".item-summary-meta", itemSummaryMeta(item, result));
+  setResult(card, ".item-collapsed-total", result.complete ? formatMoney(result.total) : "—");
+  const badge = $(".item-status-badge", card);
+  badge.hidden = result.status === ITEM_STATUS_COMPLETE;
+  badge.textContent = result.status === ITEM_STATUS_OUT_OF_RANGE ? "Out of range" : "Incomplete";
+  badge.classList.toggle("is-out-of-range", result.status === ITEM_STATUS_OUT_OF_RANGE);
+  card.dataset.status = result.status;
+}
+
 function updateShutterResult(card, item, result) {
   const hasWidth = String(item.width).trim() !== "";
   const hasHeight = String(item.height).trim() !== "";
@@ -169,9 +236,9 @@ function updateShutterResult(card, item, result) {
   setResult(card, ".result-width", result.valid ? formatMeasure(result.widthMetres, "m") : "—");
   setResult(card, ".result-height", result.valid ? formatMeasure(result.heightMetres, "m") : "—");
   setResult(card, ".result-area", result.valid ? formatMeasure(result.area, "m²") : "—");
-  setResult(card, ".result-base", result.valid ? formatMoney(result.basePrice) : "—");
-  setResult(card, ".result-surcharge", result.valid ? formatMoney(result.surcharge) : "—");
-  setResult(card, ".result-total", result.valid ? formatMoney(result.total) : "—");
+  setResult(card, ".result-base", result.complete ? formatMoney(result.basePrice) : "—");
+  setResult(card, ".result-surcharge", result.complete ? formatMoney(result.surcharge) : "—");
+  setResult(card, ".result-total", result.complete ? formatMoney(result.total) : "—");
 }
 
 function updateBlindResult(card, item, result) {
@@ -184,14 +251,16 @@ function updateBlindResult(card, item, result) {
   $(".blind-width-error", card).textContent = widthInvalid ? "Enter a value above 0" : "";
   $(".blind-drop-error", card).textContent = dropInvalid ? "Enter a value above 0" : "";
   $(".blind-size-warning", card).hidden = !result.outOfRange;
-  setResult(card, ".result-blind-entered-width", result.widthMm > 0 ? formatMillimetres(result.widthMm) : "—");
-  setResult(card, ".result-blind-entered-drop", result.dropMm > 0 ? formatMillimetres(result.dropMm) : "—");
-  setResult(card, ".result-blind-band", `Band ${result.band}`);
-  setResult(card, ".result-blind-charged-width", result.valid ? formatMillimetres(result.chargedWidth) : "—");
-  setResult(card, ".result-blind-charged-drop", result.valid ? formatMillimetres(result.chargedDrop) : "—");
-  setResult(card, ".result-blind-base", result.valid ? formatMoney(result.basePrice) : "—");
-  setResult(card, ".result-blind-surcharge", result.valid ? formatMoney(result.surcharge) : "—");
-  setResult(card, ".result-blind-total", result.valid ? formatMoney(result.total) : "—");
+  const statusMessage = $(".blind-status-message", card);
+  statusMessage.hidden = result.complete || result.outOfRange;
+  $("span", statusMessage).textContent = result.widthMm > 0 && result.dropMm > 0 ? "Select a price band" : "Enter Width and Drop";
+  $(".blind-result", card).hidden = !result.complete;
+  setResult(card, ".result-blind-entered-size", result.complete ? `${formatCompactNumber(result.widthMm)} × ${formatCompactNumber(result.dropMm)} mm` : "—");
+  setResult(card, ".result-blind-charged-size", result.complete ? `${result.chargedWidth} × ${result.chargedDrop} mm` : "—");
+  setResult(card, ".result-blind-band", result.complete ? `Band ${result.band}` : "—");
+  setResult(card, ".result-blind-base", result.complete ? formatMoney(result.basePrice) : "—");
+  setResult(card, ".result-blind-surcharge", result.complete ? formatMoney(result.surcharge) : "—");
+  setResult(card, ".result-blind-total", result.complete ? formatMoney(result.total) : "—");
 }
 
 function updateCalculations() {
@@ -205,25 +274,30 @@ function updateCalculations() {
     const item = quote.items[index];
     if (result.type === ITEM_BLIND) updateBlindResult(card, item, result);
     else updateShutterResult(card, item, result);
+    updateCardSummary(card, item, result, index);
   });
 
   const count = quote.items.length;
   elements.countBadge.textContent = `${count} ${count === 1 ? "item" : "items"}`;
   elements.summaryItems.textContent = count;
-  elements.summaryShuttersRow.hidden = summary.shutterCount === 0;
-  elements.summaryBlindsRow.hidden = summary.blindCount === 0;
-  elements.summaryAreaRow.hidden = summary.shutterCount === 0;
-  elements.summarySurchargeRow.hidden = summary.shutterCount === 0;
+  elements.summaryShuttersRow.hidden = summary.completeShutterCount === 0;
+  elements.summaryBlindsRow.hidden = summary.completeBlindCount === 0;
+  elements.summaryAreaRow.hidden = summary.completeShutterCount === 0 || summary.area <= 0;
+  elements.summarySurchargeRow.hidden = summary.surcharge <= 0;
+  elements.summaryIncompleteRow.hidden = summary.incompleteCount === 0;
   elements.summaryShutters.textContent = formatMoney(summary.shuttersSubtotal);
   elements.summaryBlinds.textContent = formatMoney(summary.blindsSubtotal);
-  elements.summaryArea.textContent = summary.area > 0 ? formatMeasure(summary.area, "m²") : "—";
+  elements.summaryArea.textContent = formatMeasure(summary.area, "m²");
   elements.summarySurcharge.textContent = formatMoney(summary.surcharge);
+  elements.summaryIncomplete.textContent = summary.incompleteCount;
   elements.summaryTotal.textContent = formatMoney(summary.total);
   elements.stickyValue.textContent = formatMoney(summary.total);
 }
 
 function addItem(createItem) {
-  quote.items.push(createItem());
+  const item = createItem();
+  quote.items.push(item);
+  expandedItemId = item.id;
   persistQuote();
   renderItems();
   const card = elements.items.lastElementChild;
@@ -258,35 +332,73 @@ elements.items.addEventListener("input", (event) => {
 });
 
 elements.items.addEventListener("click", (event) => {
-  const button = event.target.closest(".delete-item");
-  if (!button) return;
-  const card = button.closest(".item-card");
-  quote.items = quote.items.filter((entry) => entry.id !== card.dataset.id);
-  persistQuote();
-  renderItems();
+  const card = event.target.closest(".item-card");
+  if (!card) return;
+  const index = quote.items.findIndex((entry) => entry.id === card.dataset.id);
+  if (index < 0) return;
+
+  if (event.target.closest(".item-toggle")) {
+    expandedItemId = expandedItemId === card.dataset.id ? null : card.dataset.id;
+    renderItems();
+    return;
+  }
+
+  if (event.target.closest(".duplicate-item")) {
+    const copy = duplicateItem(quote.items[index], createId());
+    quote.items.splice(index + 1, 0, copy);
+    expandedItemId = copy.id;
+    persistQuote();
+    renderItems();
+    elements.items.children[index + 1]?.scrollIntoView({ behavior: "smooth", block: "center" });
+    return;
+  }
+
+  if (event.target.closest(".delete-item")) {
+    quote.items.splice(index, 1);
+    if (expandedItemId === card.dataset.id) expandedItemId = quote.items[Math.min(index, quote.items.length - 1)]?.id ?? null;
+    persistQuote();
+    renderItems();
+  }
 });
 
-elements.customer.value = quote.customer;
-elements.customer.addEventListener("input", () => { quote.customer = elements.customer.value; persistQuote(); });
 $("#add-shutter").addEventListener("click", () => addItem(createShutterItem));
 $("#add-blind").addEventListener("click", () => addItem(createBlindItem));
-$("#sticky-add").addEventListener("click", () => addItem(createShutterItem));
+function setQuickAddOpen(open) {
+  elements.quickAddMenu.hidden = !open;
+  elements.stickyAdd.setAttribute("aria-expanded", String(open));
+  elements.stickyAdd.setAttribute("aria-label", open ? "Close quick add menu" : "Open quick add menu");
+  elements.stickyAdd.classList.toggle("is-open", open);
+}
+
+elements.stickyAdd.addEventListener("click", () => setQuickAddOpen(elements.quickAddMenu.hidden));
+elements.quickAddShutter.addEventListener("click", () => { setQuickAddOpen(false); addItem(createShutterItem); });
+elements.quickAddBlind.addEventListener("click", () => { setQuickAddOpen(false); addItem(createBlindItem); });
+document.addEventListener("click", (event) => {
+  if (!elements.quickAddMenu.hidden && !event.target.closest(".quick-add")) setQuickAddOpen(false);
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !elements.quickAddMenu.hidden) {
+    setQuickAddOpen(false);
+    elements.stickyAdd.focus();
+  }
+});
 $("#reset-quote").addEventListener("click", () => {
   if (!confirm("Reset this quote? Your saved pricing will not be changed.")) return;
   quote = { customer: "", items: [createShutterItem()] };
-  elements.customer.value = "";
+  expandedItemId = quote.items[0].id;
   persistQuote();
   renderItems();
   scrollTo({ top: 0, behavior: "smooth" });
 });
 
 function showView(viewName) {
+  setQuickAddOpen(false);
   document.querySelectorAll(".view").forEach((view) => {
     const active = view.id === `${viewName}-view`;
     view.hidden = !active;
     view.classList.toggle("is-active", active);
   });
-  document.querySelectorAll(".nav-button").forEach((button) => {
+  document.querySelectorAll(".nav-button[data-view]").forEach((button) => {
     const active = button.dataset.view === viewName;
     button.classList.toggle("is-active", active);
     active ? button.setAttribute("aria-current", "page") : button.removeAttribute("aria-current");
@@ -296,7 +408,11 @@ function showView(viewName) {
   scrollTo({ top: 0, behavior: "smooth" });
 }
 
-document.querySelectorAll(".nav-button").forEach((button) => button.addEventListener("click", () => showView(button.dataset.view)));
+document.querySelectorAll(".nav-button[data-view]").forEach((button) => button.addEventListener("click", () => showView(button.dataset.view)));
+elements.themeToggle.addEventListener("click", () => {
+  const nextTheme = document.documentElement.dataset.theme === THEME_DARK ? THEME_LIGHT : THEME_DARK;
+  applyTheme(nextTheme, true);
+});
 
 elements.woodPrice.value = String(settings.woodPrice);
 elements.pvcPrice.value = String(settings.pvcPrice);
@@ -317,6 +433,7 @@ elements.settingsForm.addEventListener("submit", (event) => {
   setTimeout(() => { elements.saveFeedback.textContent = ""; }, 2400);
 });
 
+applyTheme(document.documentElement.dataset.theme);
 renderItems();
 if (location.hash === "#settings") showView("settings");
 

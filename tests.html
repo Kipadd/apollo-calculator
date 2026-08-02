@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Shutters Calculator Tests</title>
+  <title>Apollo Calculator Tests</title>
   <style>
     body{max-width:760px;margin:40px auto;padding:0 20px;font:16px/1.5 system-ui;color:#153f3a}h1{font-family:Georgia,serif}.result{padding:12px 15px;margin:8px 0;border-radius:9px}.pass{background:#e1f2e8}.fail{background:#fbe5e3}code{font-size:13px}
   </style>
@@ -17,6 +17,9 @@
       INCH_TO_METRE,
       ITEM_BLIND,
       ITEM_SHUTTER,
+      ITEM_STATUS_COMPLETE,
+      ITEM_STATUS_INCOMPLETE,
+      ITEM_STATUS_OUT_OF_RANGE,
       UNIT_INCHES,
       UNIT_METRES,
       parseDecimal,
@@ -24,6 +27,7 @@
       calculateItem,
       calculateQuote,
       convertItemMeasurements,
+      duplicateItem,
       formatMeasurementInput,
       normalizeItemType,
       normalizeStoredItem,
@@ -169,6 +173,68 @@
     test("Reset quotation contains no blind totals", () => {
       const reset=calculateQuote([{type:ITEM_SHUTTER,width:"",height:"",unit:UNIT_INCHES,material:"wood",tilt:"standard"}],{woodPrice:100,surcharge:25});
       equal(reset.blindCount,0);equal(reset.total,0);
+    });
+    test("New blind without a saved band restores with an empty band", () => {
+      equal(normalizeStoredItem({type:ITEM_BLIND,widthMm:"",dropMm:""}).band,"");
+    });
+    test("Blind without a band is incomplete", () => {
+      const result=calculateBlindItem({type:ITEM_BLIND,widthMm:1600,dropMm:2000,band:""});
+      equal(result.status,ITEM_STATUS_INCOMPLETE);equal(result.complete,false);
+    });
+    test("Blind without a band is excluded from Blinds Subtotal", () => {
+      const result=calculateQuote([{type:ITEM_BLIND,widthMm:1600,dropMm:2000,band:""}],{woodPrice:100,surcharge:25});
+      equal(result.completeBlindCount,0);equal(result.blindsSubtotal,0);
+    });
+    test("Blind without a band is excluded from Grand Total", () => {
+      const result=calculateQuote([{type:ITEM_BLIND,widthMm:1600,dropMm:2000,band:""}],{woodPrice:100,surcharge:25});
+      equal(result.total,0);equal(result.incompleteCount,1);
+    });
+    test("Selecting a blind band enables the unchanged lookup calculation", () => {
+      const result=calculateBlindItem({type:ITEM_BLIND,widthMm:1600,dropMm:2000,band:"C"});
+      equal(result.status,ITEM_STATUS_COMPLETE);equal(result.basePrice,231);near(result.total,254.10);
+    });
+    test("Saved Band A remains Band A", () => {
+      equal(normalizeStoredItem({type:ITEM_BLIND,band:"A"}).band,"A");
+    });
+    test("Duplicate blind receives a new id and copies its parameters", () => {
+      const copy=duplicateItem({id:"old",type:ITEM_BLIND,name:"Office",widthMm:"1600",dropMm:"2000",band:"C"},"new");
+      equal(copy.id,"new");equal(copy.name,"Office Copy");equal(copy.widthMm,"1600");equal(copy.dropMm,"2000");equal(copy.band,"C");
+    });
+    test("Duplicate shutter receives a new id and copies its parameters", () => {
+      const copy=duplicateItem({id:"old",type:ITEM_SHUTTER,name:"",width:1,height:1,unit:UNIT_METRES,material:"wood",tilt:"hidden"},"new");
+      equal(copy.id,"new");equal(copy.name,"");equal(copy.unit,UNIT_METRES);equal(copy.material,"wood");equal(copy.tilt,"hidden");
+    });
+    test("Duplicate complete shutter doubles its contribution to totals", () => {
+      const item={type:ITEM_SHUTTER,width:1,height:1,unit:UNIT_METRES,material:"wood",tilt:"standard"};
+      const result=calculateQuote([item,{...item}],{woodPrice:100,surcharge:25});equal(result.itemCount,2);near(result.total,200);
+    });
+    test("Deleting a duplicate restores the original total", () => {
+      const item={type:ITEM_SHUTTER,width:1,height:1,unit:UNIT_METRES,material:"wood",tilt:"standard"};
+      near(calculateQuote([item,{...item}],{woodPrice:100,surcharge:25}).total,200);
+      near(calculateQuote([item],{woodPrice:100,surcharge:25}).total,100);
+    });
+    test("Incomplete item remains in Total Items", () => {
+      const result=calculateQuote([{type:ITEM_SHUTTER,width:"",height:"",material:"wood"}],{woodPrice:100,surcharge:25});
+      equal(result.itemCount,1);equal(result.incompleteCount,1);
+    });
+    test("Incomplete shutter is excluded from Grand Total", () => {
+      const result=calculateQuote([{type:ITEM_SHUTTER,width:1,height:1,unit:UNIT_METRES,material:"wood"}],{woodPrice:0,surcharge:25});
+      equal(result.completeShutterCount,0);equal(result.total,0);
+    });
+    test("Complete blind and incomplete shutter produce only a blind subtotal", () => {
+      const result=calculateQuote([
+        {type:ITEM_BLIND,widthMm:1600,dropMm:2000,band:"C"},
+        {type:ITEM_SHUTTER,width:1,height:1,unit:UNIT_METRES,material:"wood",tilt:"standard"}
+      ],{woodPrice:0,surcharge:25});
+      equal(result.completeBlindCount,1);equal(result.completeShutterCount,0);equal(result.incompleteCount,1);near(result.blindsSubtotal,254.10);equal(result.shuttersSubtotal,0);near(result.total,254.10);
+    });
+    test("Zero Hidden Tilt surcharge remains zero in summary", () => {
+      const result=calculateQuote([{type:ITEM_SHUTTER,width:1,height:1,unit:UNIT_METRES,material:"wood",tilt:"standard"}],{woodPrice:100,surcharge:25});
+      equal(result.surcharge,0);
+    });
+    test("Out-of-range blind has out-of-range status and no total", () => {
+      const result=calculateBlindItem({type:ITEM_BLIND,widthMm:4000,dropMm:2000,band:""});
+      equal(result.status,ITEM_STATUS_OUT_OF_RANGE);equal(result.total,0);
     });
 
     let passed = 0;

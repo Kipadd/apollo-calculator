@@ -1,7 +1,7 @@
 {
-  "name": "Shutters Calculator",
-  "short_name": "Shutters Calc",
-  "description": "Fast, offline-ready shutter quote calculator.",
+  "name": "Apollo Calculator",
+  "short_name": "Apollo Calc",
+  "description": "Fast, offline-ready shutter and blind quote calculator.",
   "id": "./",
   "start_url": "./",
   "scope": "./",

@@ -3,12 +3,16 @@ import {
   INCH_TO_METRE,
   ITEM_BLIND,
   ITEM_SHUTTER,
+  ITEM_STATUS_COMPLETE,
+  ITEM_STATUS_INCOMPLETE,
+  ITEM_STATUS_OUT_OF_RANGE,
   UNIT_INCHES,
   UNIT_METRES,
   calculateBlindItem,
   calculateItem,
   calculateQuote,
   convertItemMeasurements,
+  duplicateItem,
   formatMeasurementInput,
   normalizeItemType,
   normalizeStoredItem,
@@ -148,5 +152,53 @@ assert.equal(afterBlindDeletion.blindCount, 0);
 const resetQuote = calculateQuote([{ type: ITEM_SHUTTER, width: "", height: "", unit: UNIT_INCHES, material: "wood", tilt: "standard" }], { woodPrice: 100, pvcPrice: 80, surcharge: 25 });
 assert.equal(resetQuote.blindCount, 0);
 assert.equal(resetQuote.total, 0);
+
+const newBlindWithoutBand = normalizeStoredItem({ id: "new", type: ITEM_BLIND, widthMm: "", dropMm: "" });
+assert.equal(newBlindWithoutBand.band, "");
+const incompleteBlind = calculateBlindItem({ type: ITEM_BLIND, widthMm: 1600, dropMm: 2000, band: "" });
+assert.equal(incompleteBlind.status, ITEM_STATUS_INCOMPLETE);
+assert.equal(incompleteBlind.complete, false);
+assert.equal(incompleteBlind.total, 0);
+const incompleteBlindQuote = calculateQuote([{ type: ITEM_BLIND, widthMm: 1600, dropMm: 2000, band: "" }], { woodPrice: 100, surcharge: 25 });
+assert.equal(incompleteBlindQuote.itemCount, 1);
+assert.equal(incompleteBlindQuote.completeBlindCount, 0);
+assert.equal(incompleteBlindQuote.incompleteCount, 1);
+assert.equal(incompleteBlindQuote.blindsSubtotal, 0);
+assert.equal(incompleteBlindQuote.total, 0);
+assert.equal(calculateBlindItem({ type: ITEM_BLIND, widthMm: 1600, dropMm: 2000, band: "C" }).status, ITEM_STATUS_COMPLETE);
+assert.equal(normalizeStoredItem({ type: ITEM_BLIND, band: "A" }).band, "A");
+
+const duplicatedBlind = duplicateItem({ id: "blind-original", type: ITEM_BLIND, name: "Office", widthMm: "1600", dropMm: "2000", band: "C" }, "blind-copy");
+assert.equal(duplicatedBlind.id, "blind-copy");
+assert.equal(duplicatedBlind.name, "Office Copy");
+assert.deepEqual({ ...duplicatedBlind, id: undefined, name: undefined }, {
+  id: undefined, type: ITEM_BLIND, name: undefined, widthMm: "1600", dropMm: "2000", band: "C"
+});
+const duplicatedShutter = duplicateItem({ id: "shutter-original", type: ITEM_SHUTTER, name: "", width: 1, height: 1, unit: UNIT_METRES, material: "wood", tilt: "hidden" }, "shutter-copy");
+assert.equal(duplicatedShutter.id, "shutter-copy");
+assert.equal(duplicatedShutter.name, "");
+assert.equal(duplicatedShutter.unit, UNIT_METRES);
+assert.equal(duplicatedShutter.material, "wood");
+assert.equal(duplicatedShutter.tilt, "hidden");
+const duplicateTotals = calculateQuote([shutterForMixedQuote, { ...shutterForMixedQuote, id: "s-copy" }], { woodPrice: 100, surcharge: 25 });
+near(duplicateTotals.total, 200);
+assert.equal(duplicateTotals.itemCount, 2);
+
+const incompleteShutter = calculateItem({ type: ITEM_SHUTTER, width: 1, height: 1, unit: UNIT_METRES, material: "wood", tilt: "standard" }, { woodPrice: 0, surcharge: 25 });
+assert.equal(incompleteShutter.valid, true);
+assert.equal(incompleteShutter.status, ITEM_STATUS_INCOMPLETE);
+const mixedCompletionQuote = calculateQuote([
+  { type: ITEM_BLIND, widthMm: 1600, dropMm: 2000, band: "C" },
+  { type: ITEM_SHUTTER, width: 1, height: 1, unit: UNIT_METRES, material: "wood", tilt: "standard" }
+], { woodPrice: 0, surcharge: 25 });
+assert.equal(mixedCompletionQuote.itemCount, 2);
+assert.equal(mixedCompletionQuote.completeBlindCount, 1);
+assert.equal(mixedCompletionQuote.completeShutterCount, 0);
+assert.equal(mixedCompletionQuote.incompleteCount, 1);
+near(mixedCompletionQuote.total, 254.10);
+near(mixedCompletionQuote.blindsSubtotal, 254.10);
+assert.equal(mixedCompletionQuote.shuttersSubtotal, 0);
+assert.equal(mixedCompletionQuote.surcharge, 0);
+assert.equal(calculateBlindItem({ type: ITEM_BLIND, widthMm: 4000, dropMm: 2000, band: "" }).status, ITEM_STATUS_OUT_OF_RANGE);
 
 console.log("All shutter and blind calculation, lookup, migration, persistence, and summary assertions passed.");

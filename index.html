@@ -4,24 +4,34 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#153f3a">
-  <meta name="description" content="Fast, offline-ready shutter quote calculator.">
+  <meta name="description" content="Fast, offline-ready shutter and blind quote calculator.">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Shutters Calc">
+  <meta name="apple-mobile-web-app-title" content="Apollo Calculator">
   <link rel="manifest" href="./manifest.json">
   <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png">
   <link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
+  <script>
+    (() => {
+      let theme = "light";
+      try {
+        const savedTheme = localStorage.getItem("shutters-calculator-theme-v1");
+        if (savedTheme === "dark") theme = "dark";
+      } catch {}
+      document.documentElement.dataset.theme = theme;
+    })();
+  </script>
   <link rel="stylesheet" href="./styles.css">
-  <title>Shutters Calculator</title>
+  <title>Apollo Calculator</title>
 </head>
 <body>
   <div class="app-shell">
     <header class="app-header">
-      <a class="brand" href="#calculator" aria-label="Shutters Calculator home">
+      <a class="brand" href="#calculator" aria-label="Apollo Calculator home">
         <span class="brand-mark" aria-hidden="true">
           <svg viewBox="0 0 40 40" role="img"><path d="M8 7h24v26H8zM12 12h16M12 17h16M12 22h16M12 27h16"/></svg>
         </span>
-        <span><strong>Shutters</strong><small>Calculator</small></span>
+        <span><strong>Apollo Calculator</strong><small>Shutters &amp; Blinds</small></span>
       </a>
       <nav class="top-nav" aria-label="Main navigation">
         <button class="nav-button is-active" type="button" data-view="calculator" aria-current="page">
@@ -31,6 +41,11 @@
         <button class="nav-button" type="button" data-view="settings">
           <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21h-4v-.09A1.7 1.7 0 0 0 8.96 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15 1.7 1.7 0 0 0 3 14H3v-4h.09A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6 1.7 1.7 0 0 0 10 3V3h4v.09A1.7 1.7 0 0 0 15 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9 1.7 1.7 0 0 0 21 10v4h-.09a1.7 1.7 0 0 0-1.51 1Z"/></svg>
           Settings
+        </button>
+        <button id="theme-toggle" class="nav-button theme-toggle" type="button" aria-pressed="false" aria-label="Switch to dark theme">
+          <svg class="theme-icon theme-icon-light" aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg>
+          <svg class="theme-icon theme-icon-dark" aria-hidden="true" viewBox="0 0 24 24"><path d="M20.2 15.3A8.5 8.5 0 0 1 8.7 3.8 8.5 8.5 0 1 0 20.2 15.3Z"/></svg>
+          <span class="theme-label">Light</span>
         </button>
       </nav>
     </header>
@@ -44,11 +59,6 @@
             <p>Measurements save automatically on this device.</p>
           </div>
           <span class="offline-badge"><span></span> Offline ready</span>
-        </div>
-
-        <div class="field customer-field">
-          <label for="customer">Customer / Reference <span>Optional</span></label>
-          <input id="customer" type="text" autocomplete="off" placeholder="e.g. Murphy · Living room">
         </div>
 
         <div class="section-heading">
@@ -86,6 +96,7 @@
             <div id="summary-blinds-row" hidden><dt>Blinds Subtotal</dt><dd id="summary-blinds">€0.00</dd></div>
             <div id="summary-area-row"><dt>Shutters Total Area</dt><dd id="summary-area">—</dd></div>
             <div id="summary-surcharge-row"><dt>Shutters Hidden Tilt Surcharge</dt><dd id="summary-surcharge">€0.00</dd></div>
+            <div id="summary-incomplete-row" hidden><dt>Incomplete Items</dt><dd id="summary-incomplete">0</dd></div>
             <div class="summary-grand"><dt>Grand Total</dt><dd id="summary-total">€0.00</dd></div>
           </dl>
         </section>
@@ -134,23 +145,46 @@
 
   <div id="sticky-total" class="sticky-total">
     <div><span>Grand Total</span><strong id="sticky-total-value">€0.00</strong></div>
-    <button id="sticky-add" type="button" aria-label="Add another shutter">
-      <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
-    </button>
+    <div class="quick-add">
+      <div id="quick-add-menu" class="quick-add-menu" role="menu" hidden>
+        <button id="quick-add-shutter" type="button" role="menuitem">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h8"/></svg>
+          Add Shutter
+        </button>
+        <button id="quick-add-blind" type="button" role="menuitem">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 5h14v14H5zM7 9h10M7 13h10M7 17h10"/></svg>
+          Add Blind
+        </button>
+      </div>
+      <button id="sticky-add" type="button" aria-label="Open quick add menu" aria-expanded="false" aria-controls="quick-add-menu">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+    </div>
   </div>
 
   <template id="shutter-template">
     <article class="item-card">
-      <div class="item-card-header">
-        <div class="item-number" aria-hidden="true"></div>
+      <div class="item-card-summary">
+        <button class="item-toggle" type="button" aria-expanded="false">
+          <span class="item-summary-copy"><strong class="item-summary-title"></strong><span class="item-summary-meta"></span></span>
+          <span class="item-summary-result"><span class="item-status-badge" hidden></span><strong class="item-collapsed-total">—</strong><svg class="item-chevron" aria-hidden="true" viewBox="0 0 24 24"><path d="m8 10 4 4 4-4"/></svg></span>
+        </button>
+        <div class="item-actions">
+          <button class="duplicate-item" type="button" aria-label="Duplicate item">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>
+          </button>
+          <button class="delete-item" type="button" aria-label="Remove shutter">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14M10 11v6m4-6v6"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="item-card-body">
+        <div class="item-details-header">
         <div class="field item-name-field">
           <label>Shutter name <span>Optional</span></label>
           <input class="item-name" type="text" autocomplete="off" placeholder="e.g. Kitchen">
         </div>
-        <button class="delete-item" type="button" aria-label="Remove shutter">
-          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14M10 11v6m4-6v6"/></svg>
-        </button>
-      </div>
+        </div>
       <div class="measurement-grid">
         <div class="field">
           <label class="width-label">Width (in)</label>
@@ -197,21 +231,33 @@
         <div class="surcharge-row"><dt>Hidden Tilt Surcharge</dt><dd class="result-surcharge">—</dd></div>
         <div class="item-total-row"><dt>Item Total</dt><dd class="result-total">—</dd></div>
       </dl>
+      </div>
     </article>
   </template>
 
   <template id="blind-template">
     <article class="item-card blind-card">
-      <div class="item-card-header">
-        <div class="item-number" aria-hidden="true"></div>
+      <div class="item-card-summary">
+        <button class="item-toggle" type="button" aria-expanded="false">
+          <span class="item-summary-copy"><strong class="item-summary-title"></strong><span class="item-summary-meta"></span></span>
+          <span class="item-summary-result"><span class="item-status-badge" hidden></span><strong class="item-collapsed-total">—</strong><svg class="item-chevron" aria-hidden="true" viewBox="0 0 24 24"><path d="m8 10 4 4 4-4"/></svg></span>
+        </button>
+        <div class="item-actions">
+          <button class="duplicate-item" type="button" aria-label="Duplicate item">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>
+          </button>
+          <button class="delete-item" type="button" aria-label="Remove blind">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14M10 11v6m4-6v6"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="item-card-body">
+        <div class="item-details-header">
         <div class="field item-name-field">
           <label>Blind name <span>Optional</span></label>
           <input class="item-name" type="text" autocomplete="off" placeholder="e.g. Bedroom">
         </div>
-        <button class="delete-item" type="button" aria-label="Remove blind">
-          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14M10 11v6m4-6v6"/></svg>
-        </button>
-      </div>
+        </div>
       <div class="measurement-grid">
         <div class="field">
           <label class="blind-width-label">Width (mm)</label>
@@ -227,6 +273,7 @@
       <div class="field blind-band-field">
         <label class="blind-band-label">Price Band</label>
         <select class="blind-band" autocomplete="off">
+          <option value="">Select price band</option>
           <option value="A">Band A</option>
           <option value="B">Band B</option>
           <option value="C">Band C</option>
@@ -240,16 +287,19 @@
         <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 9v4m0 4h.01M10.3 3.7 2.4 18a2 2 0 0 0 1.75 3h15.7a2 2 0 0 0 1.75-3L13.7 3.7a2 2 0 0 0-3.4 0Z"/></svg>
         <span>Size exceeds the available price table.</span>
       </div>
+      <div class="blind-status-message" hidden>
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20ZM12 11v6M12 7h.01"/></svg>
+        <span>Enter Width and Drop</span>
+      </div>
       <dl class="item-result blind-result">
-        <div><dt>Entered Width</dt><dd class="result-blind-entered-width">—</dd></div>
-        <div><dt>Entered Drop</dt><dd class="result-blind-entered-drop">—</dd></div>
-        <div><dt>Selected Band</dt><dd class="result-blind-band">Band A</dd></div>
-        <div><dt>Charged Width</dt><dd class="result-blind-charged-width">—</dd></div>
-        <div><dt>Charged Drop</dt><dd class="result-blind-charged-drop">—</dd></div>
+        <div><dt>Entered Size</dt><dd class="result-blind-entered-size">—</dd></div>
+        <div><dt>Charged Size</dt><dd class="result-blind-charged-size">—</dd></div>
+        <div><dt>Price Band</dt><dd class="result-blind-band">—</dd></div>
         <div><dt>Base Table Price</dt><dd class="result-blind-base">—</dd></div>
         <div class="surcharge-row"><dt>10% Surcharge</dt><dd class="result-blind-surcharge">—</dd></div>
         <div class="item-total-row"><dt>Item Total</dt><dd class="result-blind-total">—</dd></div>
       </dl>
+      </div>
     </article>
   </template>
 

@@ -5,13 +5,16 @@ export const UNIT_INCHES = "inches";
 export const UNIT_METRES = "metres";
 export const ITEM_SHUTTER = "shutter";
 export const ITEM_BLIND = "blind";
+export const ITEM_STATUS_COMPLETE = "complete";
+export const ITEM_STATUS_INCOMPLETE = "incomplete";
+export const ITEM_STATUS_OUT_OF_RANGE = "out-of-range";
 
 export function normalizeItemType(type) {
   return type === ITEM_BLIND ? ITEM_BLIND : ITEM_SHUTTER;
 }
 
 export function normalizeBlindBand(band) {
-  return BLIND_BANDS.includes(band) ? band : "A";
+  return BLIND_BANDS.includes(band) ? band : "";
 }
 
 export function normalizeStoredItem(item, storedQuoteUnit) {
@@ -61,6 +64,15 @@ export function formatMeasurementInput(value, unit = UNIT_INCHES) {
   return value.toFixed(decimalPlaces).replace(/\.?0+$/u, "");
 }
 
+export function duplicateItem(item, id) {
+  const name = String(item?.name ?? "").trim();
+  return {
+    ...item,
+    id,
+    name: name ? `${name} Copy` : ""
+  };
+}
+
 export function calculateItem(item, settings, unit = item.unit) {
   const normalizedUnit = normalizeUnit(unit);
   const widthInput = parseDecimal(item.width);
@@ -73,7 +85,7 @@ export function calculateItem(item, settings, unit = item.unit) {
   const valid = widthInput > 0 && heightInput > 0;
 
   if (!valid) {
-    return { type: ITEM_SHUTTER, valid: false, widthInput, heightInput, widthInches, heightInches, rate, widthMetres: 0, heightMetres: 0, area: 0, basePrice: 0, surcharge: 0, total: 0 };
+    return { type: ITEM_SHUTTER, valid: false, complete: false, status: ITEM_STATUS_INCOMPLETE, widthInput, heightInput, widthInches, heightInches, rate, widthMetres: 0, heightMetres: 0, area: 0, basePrice: 0, surcharge: 0, total: 0 };
   }
 
   const widthMetres = measurementToMetres(widthInput, normalizedUnit);
@@ -82,7 +94,8 @@ export function calculateItem(item, settings, unit = item.unit) {
   const basePrice = area * rate;
   const surcharge = item.tilt === "hidden" ? basePrice * (surchargePercent / 100) : 0;
 
-  return { type: ITEM_SHUTTER, valid: true, widthInput, heightInput, widthInches, heightInches, rate, widthMetres, heightMetres, area, basePrice, surcharge, total: basePrice + surcharge };
+  const complete = rate > 0;
+  return { type: ITEM_SHUTTER, valid: true, complete, status: complete ? ITEM_STATUS_COMPLETE : ITEM_STATUS_INCOMPLETE, widthInput, heightInput, widthInches, heightInches, rate, widthMetres, heightMetres, area, basePrice, surcharge, total: basePrice + surcharge };
 }
 
 function findChargedIndex(values, input) {
@@ -97,6 +110,8 @@ export function calculateBlindItem(item) {
   const baseResult = {
     type: ITEM_BLIND,
     valid: false,
+    complete: false,
+    status: ITEM_STATUS_INCOMPLETE,
     outOfRange: false,
     widthMm,
     dropMm,
@@ -110,16 +125,25 @@ export function calculateBlindItem(item) {
 
   if (!(widthMm > 0) || !(dropMm > 0)) return baseResult;
 
+  const maximumDrop = BLIND_PRICE_BANDS.A.drops[BLIND_PRICE_BANDS.A.drops.length - 1];
+  if (widthMm > BLIND_WIDTHS[BLIND_WIDTHS.length - 1] || dropMm > maximumDrop) {
+    return { ...baseResult, outOfRange: true, status: ITEM_STATUS_OUT_OF_RANGE };
+  }
+
+  if (!band) return baseResult;
+
   const bandTable = BLIND_PRICE_BANDS[band];
   const widthIndex = findChargedIndex(BLIND_WIDTHS, widthMm);
   const dropIndex = findChargedIndex(bandTable.drops, dropMm);
-  if (widthIndex < 0 || dropIndex < 0) return { ...baseResult, outOfRange: true };
+  if (widthIndex < 0 || dropIndex < 0) return { ...baseResult, outOfRange: true, status: ITEM_STATUS_OUT_OF_RANGE };
 
   const basePrice = bandTable.prices[dropIndex][widthIndex];
   const surcharge = basePrice * 0.10;
   return {
     ...baseResult,
     valid: true,
+    complete: true,
+    status: ITEM_STATUS_COMPLETE,
     chargedWidth: BLIND_WIDTHS[widthIndex],
     chargedDrop: bandTable.drops[dropIndex],
     basePrice,
@@ -135,20 +159,32 @@ export function calculateQuote(items, settings) {
   return results.reduce((summary, result) => {
     if (result.type === ITEM_BLIND) {
       summary.blindCount += 1;
-      summary.blindsSubtotal += result.total;
+      if (result.complete) {
+        summary.completeBlindCount += 1;
+        summary.blindsSubtotal += result.total;
+      }
     } else {
       summary.shutterCount += 1;
-      if (result.valid) summary.area += result.area;
-      summary.subtotal += result.basePrice;
-      summary.surcharge += result.surcharge;
-      summary.shuttersSubtotal += result.total;
+      if (result.complete) {
+        summary.completeShutterCount += 1;
+        summary.area += result.area;
+        summary.subtotal += result.basePrice;
+        summary.surcharge += result.surcharge;
+        summary.shuttersSubtotal += result.total;
+      }
     }
-    summary.total += result.total;
+    if (result.complete) summary.total += result.total;
+    else summary.incompleteCount += 1;
+    if (result.status === ITEM_STATUS_OUT_OF_RANGE) summary.outOfRangeCount += 1;
     return summary;
   }, {
     itemCount: items.length,
     shutterCount: 0,
     blindCount: 0,
+    completeShutterCount: 0,
+    completeBlindCount: 0,
+    incompleteCount: 0,
+    outOfRangeCount: 0,
     area: 0,
     subtotal: 0,
     surcharge: 0,
